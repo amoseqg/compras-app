@@ -9,7 +9,6 @@
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
         body { background: #f5f7fa; padding: 10px; max-width: 480px; margin: 0 auto; }
         h1 { text-align: center; color: #2c3e50; margin: 10px 0; font-size: 1.4rem; }
-        
         .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
         select, input { width: 100%; padding: 10px; margin: 6px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
         button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; margin: 5px 0; }
@@ -17,21 +16,17 @@
         .btn-add { background: #3498db; color: white; }
         .btn-clear { background: #e74c3c; color: white; }
         .btn-manual { background: #f39c12; color: white; }
-        
         #reader { width: 100%; border-radius: 10px; overflow: hidden; margin: 10px 0; }
         .hidden { display: none !important; }
-        
         .item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
         .item:last-child { border-bottom: none; }
         .item-qty { width: 40px; text-align: center; font-weight: bold; color: #2c3e50; }
         .item-name { flex: 1; padding: 0 8px; font-size: 0.95rem; }
         .item-price { font-weight: bold; color: #27ae60; }
         .item-del { color: #e74c3c; cursor: pointer; padding: 0 6px; font-weight: bold; }
-        
         .total { font-size: 1.6rem; font-weight: bold; text-align: right; color: #27ae60; padding: 10px; }
         .barcode-found { background: #e8f8f5; padding: 10px; border-radius: 8px; margin: 8px 0; border-left: 4px solid #27ae60; }
         .barcode-notfound { background: #fef5e7; padding: 10px; border-radius: 8px; margin: 8px 0; border-left: 4px solid #f39c12; }
-        
         label { font-size: 0.9rem; color: #555; font-weight: 600; }
     </style>
 </head>
@@ -39,7 +34,6 @@
 
 <h1>🛒 Leitor de Preços — Recife/PE</h1>
 
-<!-- SELEÇÃO DE SUPERMERCADO -->
 <div class="card">
     <label>🏪 Supermercado:</label>
     <select id="supermercado">
@@ -56,13 +50,11 @@
     <button class="btn-manual" onclick="mostrarManual()">✏️ Digitar Código/Valor Manualmente</button>
 </div>
 
-<!-- LEITOR DE CÂMERA -->
 <div class="card" id="leitorCard" style="display:none;">
     <div id="reader"></div>
     <button class="btn-clear" onclick="pararLeitura()">❌ Fechar Câmera</button>
 </div>
 
-<!-- RESULTADO DA BUSCA -->
 <div class="card hidden" id="resultadoBusca">
     <div id="conteudoBusca"></div>
     <div id="formManual" class="hidden">
@@ -73,7 +65,6 @@
     </div>
 </div>
 
-<!-- LISTA DE COMPRAS -->
 <div class="card">
     <h3>📋 Lista de Compras</h3>
     <div id="listaCompras"></div>
@@ -82,10 +73,7 @@
 </div>
 
 <script>
-// ================= BASE DE DADOS DE PREÇOS (ATUALIZÁVEL) =================
-// Estes são valores de referência do Novo Atacarejo e mercado em Recife
 const basePrecos = {
-    // Formato: "CODIGO_DE_BARRAS": { nome: "Nome Produto", preco: VALOR }
     "7891000123450": { nome: "Manteiga Qualy 500g", preco: 10.90 },
     "7891000678901": { nome: "Manteiga Camponesa 500g", preco: 12.90 },
     "7896005204807": { nome: "Fubá Vitamilho 1kg", preco: 4.49 },
@@ -110,41 +98,30 @@ const basePrecos = {
 let listaItens = [];
 let leitor = null;
 
-// ========== INICIAR LEITURA DE CÓDIGO DE BARRAS ==========
 function iniciarLeitura() {
     document.getElementById('leitorCard').style.display = 'block';
     const config = { fps: 10, qrbox: { width: 300, height: 200 } };
-    leitor = new Html5QrcodeScanner("reader", config, /* verbose= */ false);
+    leitor = new Html5QrcodeScanner("reader", config, false);
     leitor.render(onCodigoLido, onErroLeitura);
 }
 
-// ========== PARAR LEITURA ==========
 function pararLeitura() {
-    if (leitor) {
-        leitor.clear();
-        leitor = null;
-    }
+    if (leitor) { leitor.clear(); leitor = null; }
     document.getElementById('leitorCard').style.display = 'none';
 }
 
-// ========== CÓDIGO LIDO COM SUCESSO ==========
 function onCodigoLido(resultado) {
     if (!resultado) return;
     pararLeitura();
-    const codigo = resultado.text.trim();
-    buscarProduto(codigo);
+    buscarProduto(resultado.text.trim());
 }
 
-function onErroLeitura(erro) {
-    // Apenas ignorar erros de leitura contínuos
-}
+function onErroLeitura(erro) {}
 
-// ========== BUSCAR PRODUTO NA BASE ==========
 function buscarProduto(codigo) {
     const resultadoDiv = document.getElementById('resultadoBusca');
     const conteudo = document.getElementById('conteudoBusca');
     const formManual = document.getElementById('formManual');
-    
     resultadoDiv.classList.remove('hidden');
     
     if (basePrecos[codigo]) {
@@ -161,7 +138,6 @@ function buscarProduto(codigo) {
         `;
         formManual.classList.add('hidden');
     } else {
-        // NÃO ENCONTRADO — PERMITE DIGITAR VALOR
         conteudo.innerHTML = `
             <div class="barcode-notfound">
                 ⚠️ <strong>Produto não encontrado na base</strong><br>
@@ -176,7 +152,6 @@ function buscarProduto(codigo) {
     }
 }
 
-// ========== ADICIONAR ITEM ENCONTRADO ==========
 function adicionarAuto(codigo) {
     const qtd = parseInt(document.getElementById('qtdAuto').value) || 1;
     const prod = basePrecos[codigo];
@@ -184,12 +159,10 @@ function adicionarAuto(codigo) {
     document.getElementById('resultadoBusca').classList.add('hidden');
 }
 
-// ========== MOSTRAR FORMULÁRIO MANUAL ==========
 function mostrarManual() {
     const resultadoDiv = document.getElementById('resultadoBusca');
     const conteudo = document.getElementById('conteudoBusca');
     const formManual = document.getElementById('formManual');
-    
     resultadoDiv.classList.remove('hidden');
     conteudo.innerHTML = `<div class="barcode-notfound">✏️ <strong>Cadastro Manual de Produto</strong></div>`;
     formManual.classList.remove('hidden');
@@ -198,32 +171,23 @@ function mostrarManual() {
     document.getElementById('produtoQtd').value = '1';
 }
 
-// ========== ADICIONAR ITEM DIGITADO ==========
 function adicionarItemManual() {
     const nome = document.getElementById('produtoNome').value.trim();
     const preco = parseFloat(document.getElementById('produtoPreco').value.replace(',', '.'));
     const qtd = parseInt(document.getElementById('produtoQtd').value) || 1;
-    
-    if (!nome || isNaN(preco) || preco <= 0) {
-        alert('⚠️ Preencha nome e preço válidos!');
-        return;
-    }
-    
+    if (!nome || isNaN(preco) || preco <= 0) { alert('⚠️ Preencha nome e preço válidos!'); return; }
     _adicionarLista(nome, preco, qtd);
     document.getElementById('resultadoBusca').classList.add('hidden');
 }
 
-// ========== FUNÇÃO INTERNA ADICIONAR NA LISTA ==========
 function _adicionarLista(nome, preco, qtd) {
     listaItens.push({ nome, preco, qtd, id: Date.now() });
     atualizarLista();
 }
 
-// ========== ATUALIZAR EXIBIÇÃO E CÁLCULO ==========
 function atualizarLista() {
     const container = document.getElementById('listaCompras');
     let total = 0;
-    
     container.innerHTML = listaItens.map((item, idx) => {
         const subtotal = item.preco * item.qtd;
         total += subtotal;
@@ -236,22 +200,16 @@ function atualizarLista() {
             </div>
         `;
     }).join('');
-    
     document.getElementById('valorTotal').textContent = total.toFixed(2).replace('.', ',');
 }
 
-// ========== REMOVER ITEM ==========
 function removerItem(indice) {
     listaItens.splice(indice, 1);
     atualizarLista();
 }
 
-// ========== LIMPAR LISTA ==========
 function limparLista() {
-    if (confirm('Deseja limpar toda a lista?')) {
-        listaItens = [];
-        atualizarLista();
-    }
+    if (confirm('Deseja limpar toda a lista?')) { listaItens = []; atualizarLista(); }
 }
 </script>
 </body>
