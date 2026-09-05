@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛒 Leitor de Preços — Recife/PE</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { background: #f5f7fa; padding: 10px; max-width: 480px; margin: 0 auto; }
+        h1 { text-align: center; color: #2c3e50; margin: 10px 0; font-size: 1.4rem; }
+        
+        .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        select, input { width: 100%; padding: 10px; margin: 6px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; margin: 5px 0; }
+        .btn-scan { background: #27ae60; color: white; }
+        .btn-add { background: #3498db; color: white; }
+        .btn-clear { background: #e74c3c; color: white; }
+        .btn-manual { background: #f39c12; color: white; }
+        
+        #reader { width: 100%; border-radius: 10px; overflow: hidden; margin: 10px 0; }
+        .hidden { display: none !important; }
+        
+        .item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+        .item:last-child { border-bottom: none; }
+        .item-qty { width: 40px; text-align: center; font-weight: bold; color: #2c3e50; }
+        .item-name { flex: 1; padding: 0 8px; font-size: 0.95rem; }
+        .item-price { font-weight: bold; color: #27ae60; }
+        .item-del { color: #e74c3c; cursor: pointer; padding: 0 6px; font-weight: bold; }
+        
+        .total { font-size: 1.6rem; font-weight: bold; text-align: right; color: #27ae60; padding: 10px; }
+        .barcode-found { background: #e8f8f5; padding: 10px; border-radius: 8px; margin: 8px 0; border-left: 4px solid #27ae60; }
+        .barcode-notfound { background: #fef5e7; padding: 10px; border-radius: 8px; margin: 8px 0; border-left: 4px solid #f39c12; }
+        
+        label { font-size: 0.9rem; color: #555; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+<h1>🛒 Leitor de Preços — Recife/PE</h1>
+
+<!-- SELEÇÃO DE SUPERMERCADO -->
+<div class="card">
+    <label>🏪 Supermercado:</label>
+    <select id="supermercado">
+        <option value="novoatacarejo">Novo Atacarejo — Dois Irmãos</option>
+        <option value="bompreco">Bompreço</option>
+        <option value="carrefour">Carrefour</option>
+        <option value="paodeacucar">Pão de Açúcar</option>
+        <option value="bonanza">Bonanza</option>
+        <option value="comprebem">Comprebem</option>
+        <option value="extrabom">Extrabom</option>
+        <option value="economico">Econômico</option>
+    </select>
+    <button class="btn-scan" onclick="iniciarLeitura()">📷 Escanear Código de Barras</button>
+    <button class="btn-manual" onclick="mostrarManual()">✏️ Digitar Código/Valor Manualmente</button>
+</div>
+
+<!-- LEITOR DE CÂMERA -->
+<div class="card" id="leitorCard" style="display:none;">
+    <div id="reader"></div>
+    <button class="btn-clear" onclick="pararLeitura()">❌ Fechar Câmera</button>
+</div>
+
+<!-- RESULTADO DA BUSCA -->
+<div class="card hidden" id="resultadoBusca">
+    <div id="conteudoBusca"></div>
+    <div id="formManual" class="hidden">
+        <input type="text" id="produtoNome" placeholder="Nome do Produto">
+        <input type="number" step="0.01" id="produtoPreco" placeholder="Preço Unitário R$">
+        <input type="number" id="produtoQtd" value="1" min="1" placeholder="Quantidade">
+        <button class="btn-add" onclick="adicionarItemManual()">➕ Adicionar à Lista</button>
+    </div>
+</div>
+
+<!-- LISTA DE COMPRAS -->
+<div class="card">
+    <h3>📋 Lista de Compras</h3>
+    <div id="listaCompras"></div>
+    <div class="total">Total: R$ <span id="valorTotal">0,00</span></div>
+    <button class="btn-clear" onclick="limparLista()">🗑️ Limpar Lista</button>
+</div>
+
+<script>
+// ================= BASE DE DADOS DE PREÇOS (ATUALIZÁVEL) =================
+// Estes são valores de referência do Novo Atacarejo e mercado em Recife
+const basePrecos = {
+    // Formato: "CODIGO_DE_BARRAS": { nome: "Nome Produto", preco: VALOR }
+    "7891000123450": { nome: "Manteiga Qualy 500g", preco: 10.90 },
+    "7891000678901": { nome: "Manteiga Camponesa 500g", preco: 12.90 },
+    "7896005204807": { nome: "Fubá Vitamilho 1kg", preco: 4.49 },
+    "7891029001234": { nome: "Azeite Andorinha 250ml", preco: 14.90 },
+    "7896002105234": { nome: "Arroz Tio João 1kg", preco: 5.49 },
+    "7891128003456": { nome: "Farinha Trigo Dona Benta 1kg", preco: 5.79 },
+    "7896000112233": { nome: "Açúcar Escuro Petribu 1kg", preco: 5.69 },
+    "7896000112240": { nome: "Açúcar Branco Petribu 1kg", preco: 5.49 },
+    "7891008005555": { nome: "Creme de Leite Nestlé 200g", preco: 4.49 },
+    "7891000222222": { nome: "Leite Moça Nestlé 395g", preco: 7.79 },
+    "7897000333333": { nome: "Leite de Coco Sococo 500ml", preco: 6.49 },
+    "7891009001111": { nome: "Leite em Pó CCGL 300g", preco: 14.99 },
+    "7891023000000": { nome: "Granola São Braz Sem Glúten", preco: 17.90 },
+    "7891023000017": { nome: "Granola São Braz Light", preco: 17.90 },
+    "7894000555555": { nome: "Requeijão Poços de Caldas 300g", preco: 6.49 },
+    "7896007777777": { nome: "Papel Higiênico Ursinho c/12", preco: 21.90 },
+    "7898000111222": { nome: "Detergente Ypê 500ml", preco: 2.39 },
+    "7891000999888": { nome: "Filézinho Frango Sadia ~600g", preco: 15.98 },
+    "7891000777666": { nome: "Bandeja Ovos Brancos c/30", preco: 22.90 },
+};
+
+let listaItens = [];
+let leitor = null;
+
+// ========== INICIAR LEITURA DE CÓDIGO DE BARRAS ==========
+function iniciarLeitura() {
+    document.getElementById('leitorCard').style.display = 'block';
+    const config = { fps: 10, qrbox: { width: 300, height: 200 } };
+    leitor = new Html5QrcodeScanner("reader", config, /* verbose= */ false);
+    leitor.render(onCodigoLido, onErroLeitura);
+}
+
+// ========== PARAR LEITURA ==========
+function pararLeitura() {
+    if (leitor) {
+        leitor.clear();
+        leitor = null;
+    }
+    document.getElementById('leitorCard').style.display = 'none';
+}
+
+// ========== CÓDIGO LIDO COM SUCESSO ==========
+function onCodigoLido(resultado) {
+    if (!resultado) return;
+    pararLeitura();
+    const codigo = resultado.text.trim();
+    buscarProduto(codigo);
+}
+
+function onErroLeitura(erro) {
+    // Apenas ignorar erros de leitura contínuos
+}
+
+// ========== BUSCAR PRODUTO NA BASE ==========
+function buscarProduto(codigo) {
+    const resultadoDiv = document.getElementById('resultadoBusca');
+    const conteudo = document.getElementById('conteudoBusca');
+    const formManual = document.getElementById('formManual');
+    
+    resultadoDiv.classList.remove('hidden');
+    
+    if (basePrecos[codigo]) {
+        const prod = basePrecos[codigo];
+        conteudo.innerHTML = `
+            <div class="barcode-found">
+                ✅ <strong>Produto Encontrado!</strong><br>
+                Código: ${codigo}<br>
+                <strong>${prod.nome}</strong><br>
+                Preço Unitário: R$ ${prod.preco.toFixed(2)}
+            </div>
+            <input type="number" id="qtdAuto" value="1" min="1" placeholder="Quantidade">
+            <button class="btn-add" onclick="adicionarAuto('${codigo}')">✅ Adicionar à Lista</button>
+        `;
+        formManual.classList.add('hidden');
+    } else {
+        // NÃO ENCONTRADO — PERMITE DIGITAR VALOR
+        conteudo.innerHTML = `
+            <div class="barcode-notfound">
+                ⚠️ <strong>Produto não encontrado na base</strong><br>
+                Código lido: ${codigo}<br>
+                <em>Digite as informações abaixo para cadastrar:</em>
+            </div>
+        `;
+        formManual.classList.remove('hidden');
+        document.getElementById('produtoNome').value = '';
+        document.getElementById('produtoPreco').value = '';
+        document.getElementById('produtoQtd').value = '1';
+    }
+}
+
+// ========== ADICIONAR ITEM ENCONTRADO ==========
+function adicionarAuto(codigo) {
+    const qtd = parseInt(document.getElementById('qtdAuto').value) || 1;
+    const prod = basePrecos[codigo];
+    _adicionarLista(prod.nome, prod.preco, qtd);
+    document.getElementById('resultadoBusca').classList.add('hidden');
+}
+
+// ========== MOSTRAR FORMULÁRIO MANUAL ==========
+function mostrarManual() {
+    const resultadoDiv = document.getElementById('resultadoBusca');
+    const conteudo = document.getElementById('conteudoBusca');
+    const formManual = document.getElementById('formManual');
+    
+    resultadoDiv.classList.remove('hidden');
+    conteudo.innerHTML = `<div class="barcode-notfound">✏️ <strong>Cadastro Manual de Produto</strong></div>`;
+    formManual.classList.remove('hidden');
+    document.getElementById('produtoNome').value = '';
+    document.getElementById('produtoPreco').value = '';
+    document.getElementById('produtoQtd').value = '1';
+}
+
+// ========== ADICIONAR ITEM DIGITADO ==========
+function adicionarItemManual() {
+    const nome = document.getElementById('produtoNome').value.trim();
+    const preco = parseFloat(document.getElementById('produtoPreco').value.replace(',', '.'));
+    const qtd = parseInt(document.getElementById('produtoQtd').value) || 1;
+    
+    if (!nome || isNaN(preco) || preco <= 0) {
+        alert('⚠️ Preencha nome e preço válidos!');
+        return;
+    }
+    
+    _adicionarLista(nome, preco, qtd);
+    document.getElementById('resultadoBusca').classList.add('hidden');
+}
+
+// ========== FUNÇÃO INTERNA ADICIONAR NA LISTA ==========
+function _adicionarLista(nome, preco, qtd) {
+    listaItens.push({ nome, preco, qtd, id: Date.now() });
+    atualizarLista();
+}
+
+// ========== ATUALIZAR EXIBIÇÃO E CÁLCULO ==========
+function atualizarLista() {
+    const container = document.getElementById('listaCompras');
+    let total = 0;
+    
+    container.innerHTML = listaItens.map((item, idx) => {
+        const subtotal = item.preco * item.qtd;
+        total += subtotal;
+        return `
+            <div class="item">
+                <span class="item-qty">${item.qtd}x</span>
+                <span class="item-name">${item.nome}</span>
+                <span class="item-price">R$ ${subtotal.toFixed(2)}</span>
+                <span class="item-del" onclick="removerItem(${idx})">✕</span>
+            </div>
+        `;
+    }).join('');
+    
+    document.getElementById('valorTotal').textContent = total.toFixed(2).replace('.', ',');
+}
+
+// ========== REMOVER ITEM ==========
+function removerItem(indice) {
+    listaItens.splice(indice, 1);
+    atualizarLista();
+}
+
+// ========== LIMPAR LISTA ==========
+function limparLista() {
+    if (confirm('Deseja limpar toda a lista?')) {
+        listaItens = [];
+        atualizarLista();
+    }
+}
+</script>
+</body>
+</html>
